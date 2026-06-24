@@ -46,6 +46,16 @@ if(HAVE_STRLCAT)
   add_definitions(-DHAVE_STRLCAT)
 endif()
 
+# Detect Android, either as an NDK cross-compile target (the NDK toolchain sets
+# CMAKE_SYSTEM_NAME to Android) or as a native Termux build (where the compiler
+# predefines __ANDROID__ but CMAKE_SYSTEM_NAME is still reported as Linux).
+if(CMAKE_SYSTEM_NAME STREQUAL "Android")
+  set(ANDROID_BUILD TRUE)
+else()
+  include(CheckSymbolExists)
+  check_symbol_exists(__ANDROID__ "" ANDROID_BUILD)
+endif()
+
 if(MSVC)
   add_definitions(-D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE)
   if(MSVC LESS 1900)
@@ -57,7 +67,20 @@ endif()
 if(UNIX)
   add_definitions(-DLINUX -DENABLE_BINRELOC -g)
   include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../linux)
-  link_libraries(pthread)
+  if(ANDROID_BUILD)
+    # The compiler core uses "constexpr" as an ordinary identifier, which became
+    # a reserved keyword in C23, so pin an older C standard for the recent clang
+    # shipped on Android and Termux. -fsigned-char keeps char behaviour the same
+    # as on x86 (defensive; output was verified unaffected either way).
+    add_compile_options(-std=gnu11 -fsigned-char)
+    # The AMX bytecode format uses 32-bit cells. On a 64-bit host the cell size
+    # defaults to 64-bit, which changes the on-disk format and breaks SA-MP and
+    # open.mp compatibility, so force 32-bit cells. Harmless on 32-bit ABIs.
+    add_definitions(-DPAWN_CELL_SIZE=32)
+    # bionic folds pthread and dl into libc, so they are not linked separately.
+  else()
+    link_libraries(pthread)
+  endif()
 endif()
 
 if(APPLE)
@@ -148,7 +171,7 @@ set(PAWNDISASM_SRCS
   ../amx/amxdbg.c
 )
 add_executable(pawndisasm ${PAWNDISASM_SRCS})
-if(UNIX)
+if(UNIX AND NOT ANDROID_BUILD)
   target_link_libraries(pawndisasm dl)
 endif()
 
@@ -188,7 +211,7 @@ if(BUILD_TESTING)
     )
   endif()
   add_executable(pawnruns ${PAWNRUNS_SRCS})
-  if(UNIX)
+  if(UNIX AND NOT ANDROID_BUILD)
     target_link_libraries(pawnruns dl)
   endif()
   add_subdirectory(tests)

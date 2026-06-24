@@ -186,6 +186,43 @@ cleanly, each compiled with `-d0` and hashed with SHA-256.
    benign for the chosen configuration and is another reason 64-bit cells must be
    avoided.
 
+### Phase 2 Findings
+
+`source/compiler/CMakeLists.txt` now detects Android and applies the required
+configuration:
+
+- Detection covers both the NDK cross-compile case (the toolchain sets
+  `CMAKE_SYSTEM_NAME` to Android) and the native Termux case (the compiler
+  predefines `__ANDROID__`, detected with `check_symbol_exists`).
+- On Android it adds `-std=gnu11 -fsigned-char`, defines `PAWN_CELL_SIZE=32`,
+  and skips the separate `pthread` and `dl` linking, since bionic folds both
+  into libc.
+- The non-Android path is unchanged.
+
+The change was verified with CMake. On this glibc host the native (non-Android)
+configuration reproduces the pre-existing `constexpr` build break, because the
+system gcc defaults to C23; this confirms the issue is toolchain driven and not
+caused by the CMake change. Configuring with the exact flag set the Android
+branch applies builds `pawncc`, `pawndisasm` and `libpawnc.so` cleanly, and the
+resulting compiler reproduces the golden set byte for byte (72 of 73, the only
+difference being the time-based `__timestamp`). This validates the Android flag
+set end to end through the real build system.
+
+### Phase 3 Findings
+
+Two build scripts were added at the repository root:
+
+- `build_termux.sh`: a native in-device build (`pkg install clang cmake make`,
+  then configure and build into `build/`).
+- `build_android_ndk.sh`: a cross compile driver for `arm64-v8a`,
+  `armeabi-v7a` and `x86_64` using the NDK toolchain file, writing per-ABI
+  output under `build-android/`. It defaults to API level 21, the lowest level
+  on which the NDK merges pthread and dl into libc.
+
+Both scripts pass a shell syntax check. The NDK script could not be executed
+here because no NDK is installed; it is structured to fail early with a clear
+message if `ANDROID_NDK` is unset or the toolchain file is missing.
+
 ### Conclusion For Later Phases
 
 The required build configuration for Android, derived from the findings above,
