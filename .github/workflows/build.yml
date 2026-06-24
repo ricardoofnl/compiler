@@ -55,3 +55,39 @@ jobs:
             docker/build/pawncc
             docker/build/pawndisasm
             docker/build/pawnruns
+
+  build-android:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [arm64-v8a, armeabi-v7a, x86_64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up the Android NDK
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r26d
+
+      - name: Cross compile for ${{ matrix.abi }}
+        shell: bash
+        env:
+          ANDROID_NDK: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          chmod +x ./build_android_ndk.sh
+          ./build_android_ndk.sh Release ${{ matrix.abi }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: omp-pawn-compiler-android-${{ matrix.abi }}
+          path: |
+            build-android/${{ matrix.abi }}/libpawnc.so
+            build-android/${{ matrix.abi }}/pawncc
+            build-android/${{ matrix.abi }}/pawndisasm

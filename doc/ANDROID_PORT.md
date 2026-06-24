@@ -223,11 +223,47 @@ Both scripts pass a shell syntax check. The NDK script could not be executed
 here because no NDK is installed; it is structured to fail early with a clear
 message if `ANDROID_NDK` is unset or the toolchain file is missing.
 
-### Conclusion For Later Phases
+### CMake Minimum Version
 
-The required build configuration for Android, derived from the findings above,
-is: an older C standard (`-std=gnu11`), an explicit 32-bit cell
-(`-DPAWN_CELL_SIZE=32`) on 64-bit ABIs, the existing `sNAMEMAX=63`, defensively
-`-fsigned-char` on ARM, and a link guard so `pthread` and `dl` are not requested
-on bionic. No change to compiler logic is needed to achieve byte identical
-output. These requirements drive the CMake work in Phase 2.
+Termux ships CMake 4.x, which removed compatibility with
+`cmake_minimum_required` values below 3.5. The two affected files
+(`source/compiler/CMakeLists.txt` and `source/amx/CMakeLists.txt`) declared a
+minimum of 2.8 and were raised to 3.5. Configuring with CMake 4.x then succeeds
+without any policy workaround, and the resulting compiler still reproduces the
+golden set byte for byte. 3.5 was chosen because it is the exact policy version
+that was verified to keep output identical.
+
+### Phase 4 Findings
+
+End to end execution on a real device was confirmed by the maintainer: a native
+Termux build produces a working `pawncc` that compiles and runs sample programs.
+
+The native Termux build also produces the `pawnruns` runtime and the test suite,
+so `ctest` can be run on device. Around 90 of 93 tests pass. The three failures
+were each traced and confirmed to be unrelated to the Android port:
+
+- `__pragma`: caused by the release configuration `sNAMEMAX=63`. The test was
+  written for the default of 31. It passes when built without the override.
+- `__timestamp`: embeds the compile time and changes between any two runs.
+- `gh_353_symbol_suggestions`: a stale expectation in the test relative to the
+  current include files. The official x86 32-bit compiler produces byte
+  identical output for this test, so the failure is pre-existing.
+
+### Phase 5 Findings
+
+- `readme.md` gained an Android / Termux section covering the native build, the
+  NDK cross compile, and the runtime note about keeping `libpawnc.so` next to
+  `pawncc`.
+- `.github/workflows/build.yml` gained a `build-android` job that cross compiles
+  all three ABIs with the NDK and uploads per-ABI artifacts. It only builds; to
+  also run tests in CI an Android emulator step would be needed, since
+  cross-compiled bionic binaries do not run on the glibc CI host.
+
+### Conclusion
+
+The required build configuration for Android is: an older C standard
+(`-std=gnu11`), an explicit 32-bit cell (`-DPAWN_CELL_SIZE=32`) on 64-bit ABIs,
+the existing `sNAMEMAX=63`, defensively `-fsigned-char` on ARM, a link guard so
+`pthread` and `dl` are not requested on bionic, and a CMake minimum of at least
+3.5. No change to compiler logic was needed, and byte identical output is
+preserved on every configuration tested.

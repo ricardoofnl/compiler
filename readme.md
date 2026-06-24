@@ -86,6 +86,36 @@ Parallel installation is supported.
 
 If you are a [sampctl][sampctl] user, you are already using this compiler!
 
+### Android / Termux
+
+The compiler can be built and run on Android, for example inside
+[Termux](https://termux.dev/). Because the compiler emits architecture
+independent AMX bytecode, the `.amx` files produced on Android are byte identical
+to those produced by the official x86 build.
+
+To build natively on a device:
+
+```sh
+pkg install clang cmake make git
+git clone https://github.com/openmultiplayer/compiler
+cd compiler
+./build_termux.sh
+```
+
+The resulting `pawncc`, `pawndisasm` and `libpawnc.so` are placed in `build/`.
+Keep `libpawnc.so` alongside `pawncc` (or copy it to `$PREFIX/lib`) so the
+compiler can find it at runtime.
+
+To cross compile for Android from a desktop using the NDK (for `arm64-v8a`,
+`armeabi-v7a` and `x86_64`):
+
+```sh
+ANDROID_NDK=/path/to/ndk ./build_android_ndk.sh
+```
+
+See [doc/ANDROID_PORT.md](doc/ANDROID_PORT.md) for the design and the details of
+how byte identical output is guaranteed.
+
 ### Building from Source
 
 If you are interested in contributing then please first read
