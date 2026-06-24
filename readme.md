@@ -97,7 +97,7 @@ To build natively on a device:
 
 ```sh
 pkg install clang cmake make git
-git clone https://github.com/openmultiplayer/compiler
+git clone https://github.com/ricardoofnl/compiler
 cd compiler
 ./build_termux.sh
 ```
